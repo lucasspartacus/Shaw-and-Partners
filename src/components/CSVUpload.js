@@ -5,20 +5,36 @@ Implementation of the front-end using React
 */
 
 import React from 'react';
-import Papa from 'papaparse';
+import axios from 'axios';
 
+
+// Upload file any cvv from user machine
 const CSVUpload = ({ onDataLoad }) => {
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    Papa.parse(file, {
-      header: true,
-      complete: (result) => {
-        onDataLoad(result.data);
-      },
-      error: (error) => {
-        alert('Error parsing file:', error.message);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post('/api/files', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.status === 200) {
+        alert(response.data.message);
+        // Fetch the updated data from the backend
+      
+        const fetchDataResponse = await axios.get('/api/data');
+        if (fetchDataResponse.status === 200) {
+          onDataLoad(fetchDataResponse.data);
+        }
       }
-    });
+    } catch (error) {
+      
+      alert(`Error uploading file: ${error.response?.data?.message || error.message}`);
+    }
   };
 
   return (
