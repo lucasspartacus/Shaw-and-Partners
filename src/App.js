@@ -3,71 +3,80 @@ Lucas Spartacus Vieira Carvalho
 Shaw and Partners
 Implementation of the front-end using React
  */
-const express = require('express');
-const multer = require('multer');
-const Papa = require('papaparse');
-const path = require('path');
-const app = express();
-const port = 3000;
+import React, { useState, useEffect } from 'react';
+import CSVUpload from './components/CSVUpload';
+import SearchBar from './components/SearchBar';
+import Card from './components/Card';
+import axios from 'axios';
+import './App.css';
 
-// Set up storage with Multer
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const App = () => {
+  const [data, setData] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-// In-memory data structure to store CSV data
-let csvData = [];
+  useEffect(() => {
+    // Fetch initial data from the backend
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/data');
+        if (response.status === 200) {
+          setData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
 
-// POST /api/files endpoint to handle CSV uploads
-app.post('/api/files', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
+    fetchData();
+  }, []);
 
-  const file = req.file.buffer.toString();
-  Papa.parse(file, {
-    header: true,
-    complete: (results) => {
-      csvData = results.data;
-      res.status(200).json({ message: 'The file was uploaded successfully.' });
-    },
-    error: (error) => {
-      res.status(500).json({ message: `Error parsing file: ${error.message}` });
+  const handleDataLoad = (loadedData) => {
+    setData(loadedData);
+  };
+
+  const handleSearch = async (query) => {
+    setSearchQuery(query.toLowerCase());
+    if (query === '') {
+      const response = await axios.get('/api/data');
+      if (response.status === 200) {
+        setData(response.data);
+      }
+    } else {
+      try {
+        const response = await axios.get(`/api/users?q=${query}`);
+        if (response.status === 200) {
+          setData(response.data);
+        }
+      } catch (error) {
+        console.error('Error searching data:', error);
+      }
     }
-  });
-});
+  };
 
-// GET /api/data endpoint to return the CSV data
-app.get('/api/data', (req, res) => {
-  res.status(200).json(csvData);
-});
+  const filteredData = data.filter(row =>
+    Object.values(row).some(value =>
+      value.toLowerCase().includes(searchQuery)
+    )
+  );
 
-// GET /api/users endpoint to search through the CSV data
-app.get('/api/users', (req, res) => {
-  const query = req.query.q;
-  if (!query) {
-    return res.status(400).json({ message: 'No search query provided' });
-  }
 
-  try {
-    const searchQuery = query.toLowerCase();
-    const filteredData = csvData.filter(row =>
-      Object.values(row).some(value =>
-        value.toLowerCase().includes(searchQuery)
-      )
-    );
-    res.status(200).json({ data: filteredData });
-  } catch (error) {
-    res.status(500).json({ message: `Error searching data: ${error.message}` });
-  }
-});
+  return (
+    <div className="App">
 
-// Serve the React app
-app.use(express.static(path.join(__dirname, 'build')));
+      <nav className='nav'>
+   
+        <SearchBar onSearch={handleSearch} /> 
+        <CSVUpload onDataLoad={handleDataLoad} />
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+      </nav>
+      <div className='Line'></div>
+      <div className="cards-container">
+        {filteredData.map((row, index) => (
+          <Card key={index} data={row} />
+        ))}
+      </div>
+    </div>
+  );
+};
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+export default App;
